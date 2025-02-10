@@ -15,10 +15,10 @@ def openf(req):
     imageLink = img.get('src')
     title = img.get('alt')
     if len(soup.find_all('p'))==1:
-        description = soup.find_all('p')[0].string 
+        description = soup.find_all('p')[0].text 
     else:
-        description = soup.find_all('p')[1].string 
-    creationYear = soup.title.string.split(title)[1][2:6]
+        description = soup.find_all('p')[1].text 
+    creationYear = soup.title.text.split(title)[1][2:6]
     return [req.url, imageLink, title, description, creationYear]
 
 
