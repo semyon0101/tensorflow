@@ -5,50 +5,41 @@ import csv
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
-
+import requests
+def beautifulString(str):
+    str = str.replace('\n', " ")
+    str = str.replace('\t', ' ')
+    while str.count('  '):
+        str = str.replace('  ', ' ')
+    return str
 
 def openf(req):
-    
     soup = BeautifulSoup(req.text, 'lxml')
-    img =  soup.find_all('img')[0]
+    name = soup.find_all('h1')[0].string[6:]
+    image = soup.find('div', class_ = 'poster movie').find('img').get("src")
+    description = beautifulString(soup.find("div", class_='description').text)
+    creationYear = soup.find('ul', class_ = 'attributes').find_all('li')[1].text
+    return [req.url, name, image, description, creationYear]
 
-    imageLink = img.get('src')
-    title = img.get('alt')
-    if len(soup.find_all('p'))==1:
-        description = soup.find_all('p')[0].text 
-    else:
-        description = soup.find_all('p')[1].text 
-    creationYear = soup.title.text.split(title)[1][2:6]
-    return [req.url, imageLink, title, description, creationYear]
-
+api_url = 'https://www.yidio.com/redesign/json/browse_results.php'
+params = {"type": "movie", "index": "0", "limit": "10000"}
 
 with open('profiles1.csv', 'w', newline='', encoding="utf-8") as file:
     session = FuturesSession()
 
     writer = csv.writer(file)
-    field = ["ref", "imageLink", "title", "description", "creationYear"]
+    field = ["url", "name", "image", "description", "creationYear"]
     writer.writerow(field)
-
-    driver = webdriver.Chrome()
-    i = 1
-    while i!=416:
-        print('page: '+str(i))
-        driver.get('https://mubi.com/en/films?sort=popularity_quality_score&page='+str(i))
-        ar = []
-        while True:
-            time.sleep(1)
-            ar = driver.find_elements(By.TAG_NAME, 'a')
-            if len(ar)==55:
-                break
+    for params['index'] in range(1,40000,10000): 
+        print(params["index"])
+        data = requests.get(api_url, params=params).json()
         l = []
-        for a in ar:
-            if a.get_attribute('data-testid')=="film-tile-link":
-
-                l.append(session.get(a.get_attribute('href')))
+        for el in data['response']:
+            l.append(session.get(el["url"]))
         
         for future in as_completed(l):
-            writer.writerow(openf(future.result()))
-        
-        time.sleep(1)
-        i+=1
-        
+            try:
+                writer.writerow(openf(future.result()))
+            except:
+                print(future.result().url)
+    
