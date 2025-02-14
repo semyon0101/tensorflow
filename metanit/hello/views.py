@@ -1,11 +1,12 @@
+from django.shortcuts import render
 from django.http import HttpResponse
-  
+from .forms import UserForm
+ 
 def index(request):
-    return HttpResponse("<h2>Главная</h2>")
-  
-def about(request, name, age):
-    return HttpResponse(f"""
-            <h2>О пользователе</h2>
-            <p>Имя: {name}</p>
-            <p>Возраст: {age}</p>
-    """)
+    userform = UserForm()
+    if request.method == "POST":
+        userform = UserForm(request.POST)
+        if userform.is_valid():
+            name = userform.cleaned_data["name"]
+            return HttpResponse(f"<h2>Hello, {name}</h2>")
+    return render(request, "index.html", {"form": userform})
