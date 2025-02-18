@@ -1,48 +1,77 @@
 from concurrent.futures import as_completed
 from requests_futures.sessions import FuturesSession
+import requests  
 from bs4 import BeautifulSoup
+import json
 import csv
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-import time
-import requests
-def beautifulString(str):
-    str = str.replace('\n', " ")
-    str = str.replace('\t', ' ')
-    while str.count('  '):
-        str = str.replace('  ', ' ')
-    return str
 
-def openf(req):
-    soup = BeautifulSoup(req.text, 'lxml')
-    name = beautifulString(soup.find_all('h1')[0].string[6:])
-    image = beautifulString(soup.find('div', class_ = 'poster movie').find('img').get("src"))
-    description = beautifulString(soup.find("div", class_='description').text)
-    for year in soup.find('ul', class_ = 'attributes').find_all('li'):
-        if len(year.text)==4:
-            creationYear = beautifulString(year.text)
-    
-    return [req.url, name, image, description, creationYear]
-
-api_url = 'https://www.yidio.com/redesign/json/browse_results.php'
-params = {"type": "movie", "index": "0", "limit": "1000"}
-
-with open('profiles1.csv', 'w', newline='', encoding="utf-8") as file:
+with open('filmdata.csv', 'w', newline='', encoding="utf-8") as file:
     session = FuturesSession()
+    session_=requests.session()
 
     writer = csv.writer(file)
-    field = ["url", "name", "image", "description", "creationYear"]
+    field = ["poster", "name", "dateCreated", "genre", "description", 'url']
     writer.writerow(field)
-    for params['index'] in range(1,40000,1000): 
-        print(params["index"])
-        data = requests.get(api_url, params=params).json()
-        l = []
-        for el in data['response']:
-            l.append(session.get(el["url"]))
-        
-        for future in as_completed(l):
+
+    i=0
+    k=0
+    while i<3500:
+        i+=1
+        response = session_.post("https://www.film.ru/a-z/movies/ajax?page="+str(i))
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        l=[]
+        for a in BeautifulSoup(json.loads(soup.text)[1]['data'], "lxml").find_all('a',class_='wrapper_block_stack'):
+            url = a.get('href')
+            l.append(session.get("https://www.film.ru"+url))
+        for future in as_completed(l): 
             try:
-                writer.writerow(openf(future.result()))
+                soup_ = BeautifulSoup(future.result().text, 'html.parser')
+                poster = soup_.find('meta', property="og:image").get('content')
+                name = ''
+                dateCreated= ''
+                genre=[]
+                description=[soup_.find('meta', property="og:description").get('content')]
+                url_ = ""
+                for text in soup_.find_all('script', type="application/ld+json"):
+                    js = json.loads(text.text)
+                    if js["@type"]=="Movie":
+                        #print(json.dumps(json.loads(text.text), indent=4))
+                        name = js['name']
+                        dateCreated = js['dateCreated']
+                        genre = js['genre']
+                        description.append(js['description'])
+                        url_ = js['url']
+                writer.writerow((poster, name, dateCreated, genre, description, url_))
+
+                k+=1            
+                if k%10==0:
+                    print(k)
             except:
-                print(future.result().url)
-    
+                pass
+
+'''
+response = requests.post("https://www.film.ru/movies/doktor-nou")
+if response.status_code == 200:
+    print("Запрос выполнен успешно!")
+    soup = BeautifulSoup(response.text, 'html.parser')
+    print(soup)
+    poster = soup.find('meta', property="og:image").get('content')
+    name = ''
+    dateCreated= ''
+    genre=[]
+    description=[soup.find('meta', property="og:description").get('content')]
+    url_ = ""
+    for text in soup.find_all('script', type="application/ld+json"):
+        js = json.loads(text.text)
+        if js["@type"]=="Movie":
+            #print(json.dumps(json.loads(text.text), indent=4))
+            name = js['name']
+            dateCreated = js['dateCreated']
+            genre = js['genre']
+            description.append(js['description'])
+            url_ = js['url']
+    print(poster, name, dateCreated, genre, description, url_, sep="\n")
+else:
+    print(f"Ошибка! Статус код: {response.status_code}")
+'''
